@@ -24,14 +24,14 @@ func main() {
 	}
 
 	exchangeName := "test-exchange"
-	queueName := "test-queue"
+	queueName := "test-queue1"
 
 	err = sendCh.ExchangeDeclare(exchangeName, amqp.ExchangeDirect, true, false, false, false, nil)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	_, err = sendCh.QueueDeclare(queueName, true, false, false, false, nil)
+	_, err = sendCh.QueueDeclare(queueName, true, true, false, false, nil)
 	if err != nil {
 		log.Panic(err)
 	}

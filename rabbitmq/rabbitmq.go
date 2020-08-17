@@ -1,14 +1,16 @@
 package rabbitmq
 
 import (
-	"time"
-
 	"sync/atomic"
+	"time"
 
 	"github.com/streadway/amqp"
 )
 
 const delay = 3 // reconnect after delay seconds
+
+// ChannelCallbackFunc comment
+type ChannelCallbackFunc func(*Channel) error
 
 // Connection amqp.Connection wrapper
 type Connection struct {
@@ -16,7 +18,7 @@ type Connection struct {
 }
 
 // Channel wrap amqp.Connection.Channel, get a auto reconnect channel
-func (c *Connection) Channel() (*Channel, error) {
+func (c *Connection) Channel(clbFunc ChannelCallbackFunc) (*Channel, error) {
 	ch, err := c.Connection.Channel()
 	if err != nil {
 		return nil, err
@@ -24,6 +26,13 @@ func (c *Connection) Channel() (*Channel, error) {
 
 	channel := &Channel{
 		Channel: ch,
+	}
+
+	if clbFunc != nil {
+		err = clbFunc(channel)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	go func() {
@@ -35,7 +44,7 @@ func (c *Connection) Channel() (*Channel, error) {
 				channel.Close() // close again, ensure closed flag set when connection closed
 				break
 			}
-			debug("channel closed, reason: %v", reason)
+			debugf("channel closed, reason: %v", reason)
 
 			// reconnect if not closed by developer
 			for {
@@ -46,7 +55,16 @@ func (c *Connection) Channel() (*Channel, error) {
 				if err == nil {
 					debug("channel recreate success")
 					channel.Channel = ch
-					break
+
+					if clbFunc != nil {
+						err := clbFunc(channel)
+						if err == nil {
+							break
+						}
+						debugf("channel's callback error: %v", err)
+					} else {
+						break
+					}
 				}
 
 				debugf("channel recreate failed, err: %v", err)
